@@ -1,0 +1,31 @@
+"""
+Polyfill for missing or broken engine calls used by SDK development.
+"""
+type Polyfill {
+  """
+  Project a core workspace to a polyfill workspace.
+  """
+  pub workspace(ws: Workspace!): PolyfillWorkspace! {
+    PolyfillWorkspace(
+      ws: ws,
+      wsID: toJSON(ws.id),
+    )
+  }
+
+  """
+  Project the current workspace to a polyfill workspace.
+  """
+  pub currentWorkspace: PolyfillWorkspace! {
+    PolyfillWorkspace(
+      ws: Dagger.currentWorkspace,
+      wsID: toJSON(Dagger.currentWorkspace.id),
+    )
+  }
+
+  """
+  Check the workspace fork shim that roots returned changesets for the caller.
+  """
+  pub workspaceForkShimCheck(ws: Workspace!, nestedCwd: String! = "polyfill"): Void @check {
+    PolyfillWorkspaceForkChecks().run(ws, nestedCwd)
+  }
+}

@@ -1,0 +1,31 @@
+"""
+Polyfill implementation of workspace operations needed by SDK development.
+"""
+type PolyfillWorkspace {
+  let ws: Workspace!
+  let wsID: String!
+
+  """
+  Return a fork of the workspace state, to stage changes without side effects.
+  """
+  pub fork: PolyfillWorkspaceFork! {
+    PolyfillWorkspaceFork(
+      ws: ws,
+      wsID: wsID,
+      cwd: PolyfillWorkspaceCwd().path(ws),
+      before: directory,
+      after: directory,
+    )
+  }
+
+  """
+  Load a module source at the given path in the workspace.
+  """
+  pub moduleSource(path: String!): PolyfillModuleSource! {
+    PolyfillModuleSource(
+      ws: ws,
+      wsID: wsID,
+      path: path,
+    )
+  }
+}

@@ -1,0 +1,72 @@
+"""
+Polyfill implementation of module source operations needed by SDK development.
+"""
+type PolyfillModuleSource {
+  let ws: Workspace!
+  let wsID: String!
+  let path: String!
+
+  """
+  Generate files for this module source, and return staged workspace changes.
+  """
+  pub generate: PolyfillWorkspaceFork! {
+    let fork = PolyfillWorkspace(ws: ws, wsID: wsID).fork
+    let generated = PolyfillGeneration().workspaceModuleGeneratedContext(
+      ws,
+      wsID,
+      path,
+      cwd: ".",
+      local: true,
+      root: fork.cwd,
+    )
+
+    fork.withDirectoryDiff(fork.cwd, generated.before, generated.after)
+  }
+}
+
+type PolyfillGeneration {
+  """
+  Return generated context directories for an existing workspace module.
+
+  Temporary workaround: source construction currently happens in a nested Go
+  helper because module-side source loading loses caller workspace context.
+  Delete this helper once the engine exposes a reliable workspace module source
+  API usable directly from Dang.
+  """
+  let workspaceModuleGeneratedContext(
+    ws: Workspace!,
+    wsID: String!,
+    ref: String!,
+    cwd: String! = "",
+    local: Boolean! = false,
+    root: String! = ".",
+  ): PolyfillDirectoryDiff! {
+    let cwdFlags = if (cwd == "") { [] } else { ["--cwd", cwd] }
+    let localFlags = if (local) { ["--local"] } else { [] }
+
+    let output = container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/workspace-module-generate"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/workspace-module-generate", "."])
+      .withEnvVariable("DAGGER_TRACE_URL", cloud.traceURL)
+      .withEnvVariable("WORKSPACE_ID", wsID)
+      .withExec(
+        ["workspace-module-generate", "--root", root] + cwdFlags + localFlags + [ref],
+        experimentalPrivilegedNesting: true,
+      )
+
+    PolyfillDirectoryDiff(
+      before: output.directory("/before"),
+      after: output.directory("/after"),
+    )
+  }
+}
+
+type PolyfillDirectoryDiff {
+  let before: Directory!
+  let after: Directory!
+}
