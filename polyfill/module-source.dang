@@ -2,18 +2,18 @@
 Polyfill implementation of module source operations needed by SDK development.
 """
 type PolyfillModuleSource {
-  let ws: Workspace!
   let wsID: String!
+  let cwd: String!
   let path: String!
 
   """
   Read and edit this module source's dagger.json.
   """
   pub config: PolyfillModuleConfig! {
-    let configContents = ws.directory("/", include: [configPath]).file(configPath).contents
+    let configContents = PolyfillWorkspaceSnapshot().existingFile(wsID, configPath, configPath).file(configPath).contents
     PolyfillModuleConfig(
       wsID: wsID,
-      cwd: PolyfillWorkspaceCwd().path(ws),
+      cwd: cwd,
       path: path,
       originalContents: configContents,
       contents: configContents,
@@ -24,9 +24,8 @@ type PolyfillModuleSource {
   Generate files for this module source, and return staged workspace changes.
   """
   pub generate: PolyfillWorkspaceFork! {
-    let fork = PolyfillWorkspace(ws: ws, wsID: wsID).fork
+    let fork = PolyfillWorkspace(wsID: wsID, cwd: cwd).fork
     let generated = PolyfillGeneration().workspaceModuleGeneratedContext(
-      ws,
       wsID,
       path,
       cwd: ".",
@@ -55,7 +54,6 @@ type PolyfillGeneration {
   API usable directly from Dang.
   """
   let workspaceModuleGeneratedContext(
-    ws: Workspace!,
     wsID: String!,
     ref: String!,
     cwd: String! = "",

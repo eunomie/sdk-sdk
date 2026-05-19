@@ -7,8 +7,8 @@ type Polyfill {
   """
   pub workspace(ws: Workspace!): PolyfillWorkspace! {
     PolyfillWorkspace(
-      ws: ws,
       wsID: toJSON(ws.id),
+      cwd: PolyfillWorkspaceCwd().path(ws),
     )
   }
 
@@ -16,9 +16,10 @@ type Polyfill {
   Project the current workspace to a polyfill workspace.
   """
   pub currentWorkspace: PolyfillWorkspace! {
+    let ws = Dagger.currentWorkspace
     PolyfillWorkspace(
-      ws: Dagger.currentWorkspace,
-      wsID: toJSON(Dagger.currentWorkspace.id),
+      wsID: toJSON(ws.id),
+      cwd: PolyfillWorkspaceCwd().path(ws),
     )
   }
 

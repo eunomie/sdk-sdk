@@ -2,8 +2,8 @@
 Polyfill implementation of workspace operations needed by SDK development.
 """
 type PolyfillWorkspace {
-  let ws: Workspace!
   let wsID: String!
+  let cwd: String!
 
   """
   Return a fork of the workspace state, to stage changes without side effects.
@@ -11,7 +11,7 @@ type PolyfillWorkspace {
   pub fork: PolyfillWorkspaceFork! {
     PolyfillWorkspaceFork(
       wsID: wsID,
-      cwd: PolyfillWorkspaceCwd().path(ws),
+      cwd: cwd,
       before: directory,
       after: directory,
     )
@@ -22,8 +22,8 @@ type PolyfillWorkspace {
   """
   pub moduleSource(path: String!): PolyfillModuleSource! {
     PolyfillModuleSource(
-      ws: ws,
       wsID: wsID,
+      cwd: cwd,
       path: path,
     )
   }
