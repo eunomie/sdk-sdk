@@ -10,8 +10,8 @@ type PolyfillWorkspace {
   """
   pub fork: PolyfillWorkspaceFork! {
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: wsID,
+      root: ws.directory("/", include: ["**", "**/.*/**"]),
       cwd: PolyfillWorkspaceCwd().path(ws),
       before: directory,
       after: directory,

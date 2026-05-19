@@ -10,8 +10,8 @@ when producing a Changeset, because today's clients apply returned changesets
 relative to the caller cwd.
 """
 type PolyfillWorkspaceFork {
-  let ws: Workspace!
   let wsID: String!
+  let root: Directory!
 
   """
   Caller cwd relative to the workspace root.
@@ -29,8 +29,8 @@ type PolyfillWorkspaceFork {
     let localPath = clientPath(workspacePath)
 
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: wsID,
+      root: root,
       cwd: cwd,
       before: beforeWithExistingFile(workspacePath, localPath),
       after: after.withNewFile(localPath, contents),
@@ -45,8 +45,8 @@ type PolyfillWorkspaceFork {
     let localPath = clientPath(workspacePath)
 
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: wsID,
+      root: root,
       cwd: cwd,
       before: beforeWithExistingFile(workspacePath, localPath),
       after: after.withFile(localPath, source),
@@ -61,8 +61,8 @@ type PolyfillWorkspaceFork {
     let localPath = clientPath(workspacePath)
 
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: wsID,
+      root: root,
       cwd: cwd,
       before: beforeWithExistingDirectory(workspacePath, localPath),
       after: after.withDirectory(localPath, source),
@@ -77,8 +77,8 @@ type PolyfillWorkspaceFork {
     let localPath = clientPath(workspacePath)
 
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: wsID,
+      root: root,
       cwd: cwd,
       before: before.withDirectory(localPath, beforeSource),
       after: after.withDirectory(localPath, afterSource),
@@ -114,8 +114,8 @@ type PolyfillWorkspaceFork {
     }
 
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: wsID,
+      root: root,
       cwd: cwd,
       before: before.withDirectory(".", other.before),
       after: after.withDirectory(".", other.after),
@@ -133,9 +133,8 @@ type PolyfillWorkspaceFork {
   Return the before directory with the current workspace file added if it exists.
   """
   let beforeWithExistingFile(workspacePath: String!, localPath: String!): Directory! {
-    let current = ws.directory("/", include: [workspacePath])
-    if (current.exists(workspacePath)) {
-      before.withFile(localPath, current.file(workspacePath))
+    if (root.exists(workspacePath)) {
+      before.withFile(localPath, root.file(workspacePath))
     } else {
       before
     }
@@ -145,11 +144,8 @@ type PolyfillWorkspaceFork {
   Return the before directory with the current workspace directory added if it exists.
   """
   let beforeWithExistingDirectory(workspacePath: String!, localPath: String!): Directory! {
-    let include = if (workspacePath == ".") { ["**"] } else { [workspacePath, workspacePath + "/**"] }
-    let current = ws.directory("/", include: include)
-
-    if (current.exists(workspacePath)) {
-      before.withDirectory(localPath, current.directory(workspacePath))
+    if (root.exists(workspacePath)) {
+      before.withDirectory(localPath, root.directory(workspacePath))
     } else {
       before
     }
@@ -184,39 +180,43 @@ type PolyfillWorkspaceForkChecks {
   Run focused checks for path conversion and changeset construction.
   """
   let run(ws: Workspace!, nestedCwd: String!): Void {
+    let salt = cloud.traceURL
+
     let empty = fork(ws, ".").changes
     assert(empty.isEmpty, "empty workspace fork should return an empty changeset")
 
     let rootPath = ".dagger/modules/e2e/out/workspace-fork/root.txt"
-    let root = fork(ws, ".").withNewFile(rootPath, "root\n").changes
+    let rootContents = "root\n" + salt
+    let root = fork(ws, ".").withNewFile(rootPath, rootContents).changes
     assert(contains(root.addedPaths, rootPath), "root cwd fork returned the wrong added path")
-    assert(root.layer.file(rootPath).contents == "root\n", "root cwd fork wrote the wrong file contents")
+    assert(root.layer.file(rootPath).contents == rootContents, "root cwd fork wrote the wrong file contents")
 
     let nested = fork(ws, nestedCwd)
     assert(nested.clientPath(nestedCwd) == ".", "nested cwd should map its own root to .")
     assert(nested.clientPath(nestedCwd + "/dagger.json") == "dagger.json", "nested cwd should strip its own root from child paths")
 
-    let nestedFile = nested.withNewFile(nestedCwd + "/workspace-fork.txt", "nested\n").changes
+    let nestedContents = "nested\n" + salt
+    let nestedFile = nested.withNewFile(nestedCwd + "/workspace-fork.txt", nestedContents).changes
     assert(contains(nestedFile.addedPaths, "workspace-fork.txt"), "nested cwd fork returned a workspace-root path")
-    assert(nestedFile.layer.file("workspace-fork.txt").contents == "nested\n", "nested cwd fork wrote the wrong file contents")
+    assert(nestedFile.layer.file("workspace-fork.txt").contents == nestedContents, "nested cwd fork wrote the wrong file contents")
 
     let config = directory
-      .withNewFile("dagger.json", "{\n  \"name\": \"workspace-fork-test\"\n}\n")
+      .withNewFile("dagger.json", "{\n  \"name\": " + toJSON("workspace-fork-test-" + salt) + "\n}\n")
       .file("dagger.json")
     let replaced = nested.withFile(nestedCwd + "/dagger.json", config).changes
     assert(contains(replaced.modifiedPaths, "dagger.json"), "existing file replacement was not reported as modified")
     assert(replaced.addedPaths.length == 0, "existing file replacement should not add paths")
-    assertContains(replaced.after.file("dagger.json").contents, "\"workspace-fork-test\"", "existing file replacement wrote the wrong contents")
+    assertContains(replaced.after.file("dagger.json").contents, "workspace-fork-test", "existing file replacement wrote the wrong contents")
 
-    let before = directory.withNewFile("old.txt", "old\n")
-    let after = directory.withNewFile("new.txt", "new\n")
+    let before = directory.withNewFile("old.txt", "old\n" + salt)
+    let after = directory.withNewFile("new.txt", "new\n" + salt)
     let dirDiff = nested.withDirectoryDiff(nestedCwd, before, after).changes
     assert(contains(dirDiff.addedPaths, "new.txt"), "directory diff did not report the added file")
     assert(contains(dirDiff.removedPaths, "old.txt"), "directory diff did not report the removed file")
 
     let merged = fork(ws, ".")
-      .withNewFile(".dagger/modules/e2e/out/workspace-fork/one.txt", "one\n")
-      .merge(fork(ws, ".").withNewFile(".dagger/modules/e2e/out/workspace-fork/two.txt", "two\n"))
+      .withNewFile(".dagger/modules/e2e/out/workspace-fork/one.txt", "one\n" + salt)
+      .merge(fork(ws, ".").withNewFile(".dagger/modules/e2e/out/workspace-fork/two.txt", "two\n" + salt))
       .changes
     assert(contains(merged.addedPaths, ".dagger/modules/e2e/out/workspace-fork/one.txt"), "merged fork lost the first file")
     assert(contains(merged.addedPaths, ".dagger/modules/e2e/out/workspace-fork/two.txt"), "merged fork lost the second file")
@@ -229,8 +229,8 @@ type PolyfillWorkspaceForkChecks {
   """
   let fork(ws: Workspace!, cwd: String!): PolyfillWorkspaceFork! {
     PolyfillWorkspaceFork(
-      ws: ws,
       wsID: toJSON(ws.id),
+      root: ws.directory("/", include: ["**", "**/.*/**"]),
       cwd: cwd,
       before: directory,
       after: directory,

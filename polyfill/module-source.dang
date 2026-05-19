@@ -7,6 +7,20 @@ type PolyfillModuleSource {
   let path: String!
 
   """
+  Read and edit this module source's dagger.json.
+  """
+  pub config: PolyfillModuleConfig! {
+    let configContents = ws.directory("/", include: [configPath]).file(configPath).contents
+    PolyfillModuleConfig(
+      wsID: wsID,
+      cwd: PolyfillWorkspaceCwd().path(ws),
+      path: path,
+      originalContents: configContents,
+      contents: configContents,
+    )
+  }
+
+  """
   Generate files for this module source, and return staged workspace changes.
   """
   pub generate: PolyfillWorkspaceFork! {
@@ -21,6 +35,13 @@ type PolyfillModuleSource {
     )
 
     fork.withDirectoryDiff(fork.cwd, generated.before, generated.after)
+  }
+
+  """
+  Return this module source's dagger.json path from the workspace root.
+  """
+  let configPath: String! {
+    if (path == ".") { "dagger.json" } else { path + "/dagger.json" }
   }
 }
 
