@@ -36,7 +36,7 @@ type SdkSdk {
       raise "name must be a Dang root type name like MySdk"
     }
 
-    let template = currentModule.source.file("template/main.dang").contents.replace("__SDK_NAME__", name)
+    let template = currentModule.source.file("init-template/main.dang").contents.replace("__SDK_NAME__", name)
     let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  }\n}\n"
 
     directory
