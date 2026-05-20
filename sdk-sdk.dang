@@ -19,30 +19,46 @@ type SdkSdk {
     let modPath = cleanModulePath(path)
     let configPath = if (modPath == ".") { "dagger.json" } else { modPath + "/dagger.json" }
     let mainPath = if (modPath == ".") { "main.dang" } else { modPath + "/main.dang" }
+    let fork = polyfill.workspace(ws).fork
 
-    if (directory.exists(configPath)) {
+    if (ws.directory("/", include: [configPath]).exists(configPath)) {
       raise "module already exists: " + modPath
     }
 
-    if (
-      name == ""
-        or name.contains("-")
-        or name.contains("_")
-        or name.contains("/")
-        or name.contains(".")
-        or name.contains(" ")
-        or name.contains("\"")
-    ) {
-      raise "name must be a Dang root type name like MySdk"
+    if (name == "" or name.contains("/") or name.contains(".") or name.contains(" ") or name.contains("\"") or name.contains("_")) {
+      raise "name must be a Dagger module name like my-sdk"
     }
 
-    let template = currentModule.source.file("init-template/main.dang").contents.replace("__SDK_NAME__", name)
     let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  },\n  \"dependencies\": [\n    {\n      \"name\": \"polyfill\",\n      \"source\": \"github.com/dagger/sdk-sdk/polyfill\"\n    }\n  ]\n}\n"
 
-    directory
-      .withNewFile(mainPath, template)
+    fork
+      .withFile(mainPath, renderedInitTemplate(name))
       .withNewFile(configPath, config)
-      .changes(directory)
+      .changes
+  }
+
+  """
+  `init` should accept CLI module names and render a valid Dang root type.
+  """
+  pub initAcceptsCliCaseName(ws: Workspace!): Void @check {
+    let name = "my-sdk"
+    let modulePath = ".dagger/modules/" + name
+    let changes = init(ws, name, modulePath)
+    let mainPath = modulePath + "/main.dang"
+    let configPath = modulePath + "/dagger.json"
+
+    if (changes.addedPaths.contains(mainPath) == false) {
+      raise "init should add main.dang for a CLI-case module name"
+    }
+    if (changes.addedPaths.contains(configPath) == false) {
+      raise "init should add dagger.json for a CLI-case module name"
+    }
+    if (changes.after.file(mainPath).contents.contains("type MySdk {") == false) {
+      raise "init should render the CLI-case module name as a Dang root type"
+    }
+    if (changes.after.file(configPath).contents.contains("\"name\": \"my-sdk\"") == false) {
+      raise "init should preserve the CLI-case module name in dagger.json"
+    }
   }
 
   """
@@ -361,6 +377,23 @@ type SdkSdk {
     }
   }
 
+  """
+  Render the init template with a GraphQL-safe Dang root type derived from the module name.
+  """
+  let renderedInitTemplate(name: String!): File! {
+    container
+      .from("golang:1.25-alpine")
+      .withoutEntrypoint
+      .withMountedCache("/go/pkg/mod", cacheVolume("go-mod"))
+      .withMountedCache("/root/.cache/go-build", cacheVolume("go-build"))
+      .withDirectory("/helper", currentModule.source.directory("helpers/render-init-template"))
+      .withFile("/template/main.dang", currentModule.source.file("init-template/main.dang"))
+      .withWorkdir("/helper")
+      .withExec(["go", "build", "-o", "/usr/local/bin/render-init-template", "."])
+      .withExec(["render-init-template", name, "/template/main.dang", "/rendered/main.dang"])
+      .file("/rendered/main.dang")
+  }
+
   let defaultInitName: String! = "sdk-contract-init"
   let defaultInit: [String!]! = ["init", "--name", defaultInitName]
   let defaultInitConfig: String! = ".dagger/modules/" + defaultInitName + "/dagger.json"
@@ -373,5 +406,5 @@ type SdkSdk {
   let requireEngineArgs: [String!]! = engineArgs + ["require", "--version", engineVersion]
   let selfModule: String! = "sdk-sdk"
   let selfFixturePath: String! = ".dagger/modules/sdk-sdk-e2e/fixtures/sdk-helper"
-  let noSdkModuleMessage: String! = "no SDK module detected. Start with 'dagger call sdk-sdk init --name MySdk', or initialize your own Dagger module"
+  let noSdkModuleMessage: String! = "no SDK module detected. Start with 'dagger call sdk-sdk init --name my-sdk', or initialize your own Dagger module"
 }

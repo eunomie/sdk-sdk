@@ -18,14 +18,15 @@ type __SDK_NAME__ {
       cleanModulePath(path)
     }
     let configPath = if (modulePath == ".") { "dagger.json" } else { modulePath + "/dagger.json" }
+    let fork = polyfill.workspace(ws).fork
 
-    if (directory.exists(configPath)) {
+    if (ws.directory("/", include: [configPath]).exists(configPath)) {
       raise "module already exists: " + modulePath
     }
 
-    directory
+    fork
       .withNewFile(configPath, initConfig(name, template, ignoreGenerated))
-      .changes(directory)
+      .changes
   }
 
   """

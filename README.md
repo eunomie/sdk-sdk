@@ -5,10 +5,11 @@ Shared contract checks for official SDK helper modules.
 Start a new Dang SDK helper module:
 
 ```sh
-dagger call sdk-sdk init --name MySdk
+dagger call sdk-sdk init --name my-sdk
 ```
 
-`--name` is used as the generated Dang root type/module name.
+`--name` is the Dagger module name. The generated Dang root type is derived
+from it, for example `my-sdk` becomes `MySdk`.
 
 Run it from an SDK helper module workspace:
 
