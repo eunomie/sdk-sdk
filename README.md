@@ -28,6 +28,8 @@ The first coverage is intentionally small:
 - `mod(ws, path, findUp): Mod!`
 - `Mod.path`
 - `Mod.dependencies.add(source, name): Changeset!`
+- `Mod.engine.required`
+- `Mod.engine.require(version): Changeset!`
 
 The Go SDK currently exposes `Mod.deps`; the contract accepts that alias while
 the shared API is being introduced.

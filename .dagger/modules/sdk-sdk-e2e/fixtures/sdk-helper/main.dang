@@ -63,6 +63,13 @@ type SdkHelperFixtureMod {
   }
 
   """
+  Engine manager.
+  """
+  pub engine: SdkHelperFixtureEngine! {
+    SdkHelperFixtureEngine(ws: ws)
+  }
+
+  """
   Temporary Go SDK alias accepted by sdk-sdk.
   """
   pub deps: SdkHelperFixtureDependencies! {
@@ -99,5 +106,67 @@ type SdkHelperFixtureDependencies {
   """
   let originalConfig: String! {
     "{\n  \"name\": \"sdk-helper-fixture\",\n  \"engineVersion\": \"v0.20.8\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  }\n}\n"
+  }
+}
+
+"""
+Minimal engine manager.
+"""
+type SdkHelperFixtureEngine {
+  let ws: Workspace!
+
+  """
+  Return the configured engine version without a leading v.
+  """
+  pub required: String! {
+    "0.20.8"
+  }
+
+  """
+  Stage a required engine version in dagger.json.
+  """
+  pub require(version: String!): Changeset! {
+    directory
+      .withNewFile("dagger.json", config(normalizedVersion(version)))
+      .changes(directory.withNewFile("dagger.json", originalConfig))
+  }
+
+  """
+  Stage the current Dagger engine version in dagger.json.
+  """
+  pub requireCurrent: Changeset! {
+    raise "TODO: fixture does not implement current engine detection"
+  }
+
+  """
+  Stage the latest stable Dagger engine version in dagger.json.
+  """
+  pub requireLatest: Changeset! {
+    require("latest")
+  }
+
+  """
+  Return dagger.json contents with the requested engine version.
+  """
+  let config(version: String!): String! {
+    "{\n  \"name\": \"sdk-helper-fixture\",\n  \"engineVersion\": \"" + version + "\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  }\n}\n"
+  }
+
+  """
+  Return the fixture's original dagger.json contents.
+  """
+  let originalConfig: String! {
+    "{\n  \"name\": \"sdk-helper-fixture\",\n  \"engineVersion\": \"v0.20.8\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  }\n}\n"
+  }
+
+  """
+  Return a version string suitable for dagger.json.
+  """
+  let normalizedVersion(version: String!): String! {
+    if (version == "latest" or version.trimPrefix("v") != version) {
+      version
+    } else {
+      "v" + version
+    }
   }
 }

@@ -37,7 +37,7 @@ type SdkSdk {
     }
 
     let template = currentModule.source.file("init-template/main.dang").contents.replace("__SDK_NAME__", name)
-    let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  }\n}\n"
+    let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  },\n  \"dependencies\": [\n    {\n      \"name\": \"polyfill\",\n      \"source\": \"github.com/dagger/sdk-sdk/polyfill\"\n    }\n  ]\n}\n"
 
     directory
       .withNewFile(mainPath, template)
@@ -140,6 +140,81 @@ type SdkSdk {
     testTarget.assertSuccess(
       dependencyManagerArgs(testTarget) + ["list"],
       "mod should expose dependency management",
+    )
+  }
+
+  """
+  `mod` should expose an engine manager.
+  """
+  pub modExposesEngineManager(ws: Workspace!): Void @check {
+    let module = targetModule(ws)
+
+    target(module).assertSuccess(
+      engineArgs + ["required"],
+      "mod should expose engine management",
+    )
+  }
+
+  """
+  `engine.required` should report the configured engine version.
+  """
+  pub engineRequiredReportsConfiguredVersion(ws: Workspace!): Void @check {
+    let module = targetModule(ws)
+
+    target(module).assertJsonString(
+      engineArgs + ["required"],
+      module.config.requiredEngineVersion,
+      "engine.required should report the configured engine version",
+    )
+  }
+
+  """
+  `engine.require` should edit dagger.json.
+  """
+  pub engineRequireModifiesDaggerJson(ws: Workspace!): Void @check {
+    let module = targetModule(ws)
+
+    target(module).assertJsonListContains(
+      requireEngineArgs + ["modified-paths"],
+      "dagger.json",
+      "engine.require should modify dagger.json",
+    )
+  }
+
+  """
+  `engine.require` should not create unrelated files.
+  """
+  pub engineRequireDoesNotAddFiles(ws: Workspace!): Void @check {
+    let module = targetModule(ws)
+
+    target(module).assertJsonListEmpty(
+      requireEngineArgs + ["added-paths"],
+      "engine.require should not add files",
+    )
+  }
+
+  """
+  `engine.require` should not remove files.
+  """
+  pub engineRequireDoesNotRemoveFiles(ws: Workspace!): Void @check {
+    let module = targetModule(ws)
+
+    target(module).assertJsonListEmpty(
+      requireEngineArgs + ["removed-paths"],
+      "engine.require should not remove files",
+    )
+  }
+
+  """
+  `engine.require` should write the requested engine version.
+  """
+  pub engineRequirePreservesVersion(ws: Workspace!): Void @check {
+    let module = targetModule(ws)
+
+    target(module).assertJsonStringContains(
+      requireEngineArgs + ["after", "file", "--path", "dagger.json", "contents"],
+      "\"engineVersion\": \"v" + engineVersion + "\"",
+      "engine.require should preserve the requested version",
     )
   }
 
@@ -292,7 +367,10 @@ type SdkSdk {
 
   let dependencyName: String! = "sdk-contract-dependency"
   let dependencySource: String! = "../" + dependencyName
+  let engineVersion: String! = "0.21.0"
   let modArgs: [String!]! = ["mod", "--path", ".", "--find-up=false"]
+  let engineArgs: [String!]! = modArgs + ["engine"]
+  let requireEngineArgs: [String!]! = engineArgs + ["require", "--version", engineVersion]
   let selfModule: String! = "sdk-sdk"
   let selfFixturePath: String! = ".dagger/modules/sdk-sdk-e2e/fixtures/sdk-helper"
   let noSdkModuleMessage: String! = "no SDK module detected. Start with 'dagger call sdk-sdk init --name MySdk', or initialize your own Dagger module"
