@@ -2,6 +2,14 @@
 
 Shared contract checks for official SDK helper modules.
 
+Start a new Dang SDK helper module:
+
+```sh
+dagger call sdk-sdk init --name MySdk
+```
+
+`--name` is used as the generated Dang root type/module name.
+
 Run it from an SDK helper module workspace:
 
 ```sh

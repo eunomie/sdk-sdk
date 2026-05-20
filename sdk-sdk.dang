@@ -10,6 +10,42 @@ public API that SDK developers actually use.
 """
 type SdkSdk {
   """
+  Create a new Dang SDK helper module and return the files to write.
+
+  By default, the new module is created in the current workspace directory.
+  Pass `path` to choose a different module location.
+  """
+  pub init(ws: Workspace!, name: String!, path: String! = "."): Changeset! {
+    let modPath = cleanModulePath(path)
+    let configPath = if (modPath == ".") { "dagger.json" } else { modPath + "/dagger.json" }
+    let mainPath = if (modPath == ".") { "main.dang" } else { modPath + "/main.dang" }
+
+    if (directory.exists(configPath)) {
+      raise "module already exists: " + modPath
+    }
+
+    if (
+      name == ""
+        or name.contains("-")
+        or name.contains("_")
+        or name.contains("/")
+        or name.contains(".")
+        or name.contains(" ")
+        or name.contains("\"")
+    ) {
+      raise "name must be a Dang root type name like MySdk"
+    }
+
+    let template = currentModule.source.file("template/main.dang").contents.replace("__SDK_NAME__", name)
+    let config = "{\n  \"name\": " + toJSON(name) + ",\n  \"engineVersion\": \"latest\",\n  \"sdk\": {\n    \"source\": \"dang\"\n  }\n}\n"
+
+    directory
+      .withNewFile(mainPath, template)
+      .withNewFile(configPath, config)
+      .changes(directory)
+  }
+
+  """
   `init` should stage a dagger.json at the default module location.
   """
   pub initAddsDefaultConfig(ws: Workspace!): Void @check {
@@ -230,6 +266,26 @@ type SdkSdk {
     }
   }
 
+  """
+  Return a valid module path relative to the caller cwd.
+  """
+  let cleanModulePath(path: String!): String! {
+    let rawPath = path.trimPrefix("./").trimPrefix("/")
+
+    if (rawPath == "" or rawPath == ".") {
+      "."
+    } else if (
+      rawPath == ".."
+        or rawPath.trimPrefix("../") != rawPath
+        or rawPath.contains("/../")
+        or rawPath.trimSuffix("/..") != rawPath
+    ) {
+      raise "path escapes workspace: " + rawPath
+    } else {
+      rawPath.trimSuffix("/")
+    }
+  }
+
   let defaultInitName: String! = "sdk-contract-init"
   let defaultInit: [String!]! = ["init", "--name", defaultInitName]
   let defaultInitConfig: String! = ".dagger/modules/" + defaultInitName + "/dagger.json"
@@ -239,5 +295,5 @@ type SdkSdk {
   let modArgs: [String!]! = ["mod", "--path", ".", "--find-up=false"]
   let selfModule: String! = "sdk-sdk"
   let selfFixturePath: String! = ".dagger/modules/sdk-sdk-e2e/fixtures/sdk-helper"
-  let noSdkModuleMessage: String! = "no SDK module detected in the workspace"
+  let noSdkModuleMessage: String! = "no SDK module detected. Start with 'dagger call sdk-sdk init --name MySdk', or initialize your own Dagger module"
 }
